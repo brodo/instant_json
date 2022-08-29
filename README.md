@@ -10,3 +10,5 @@ For building the WASM module, install **wasm-pack**:
 cargo install wasm-pack
 ```
 
+And compile it to a WASM-module using `wasm-pack build --target web`.
+
