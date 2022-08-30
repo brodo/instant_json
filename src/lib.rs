@@ -17,19 +17,19 @@ pub struct InstantJson {
 }
 
 impl InstantJson {
-    fn new() -> Self {
+    pub fn new() -> Self {
         InstantJson {
             vms: HashMap::new()
         }
     }
 
-    fn compile<'a>(&'a mut self, schema_name: &str, schema: &'a str) -> Result<(), InstantJsonError>{
+    pub fn compile<'a>(&'a mut self, schema_name: &str, schema: &'a str) -> Result<(), InstantJsonError>{
         let rules = parse_pest(schema)?;
         self.vms.insert(schema_name.to_string(), Vm::new(rules));
         Ok(())
     }
 
-    fn parse<'a>(&'a self, schema_name: &str, json_str: &'a str) -> Result<Pairs<&str>, InstantJsonError>  {
+    pub fn parse<'a>(&'a self, schema_name: &str, json_str: &'a str) -> Result<Pairs<&str>, InstantJsonError>  {
         let vm = self.vms.get(schema_name).ok_or(InstantJsonError::NotFound)?;
         Ok(vm.parse("root", json_str)?)
     }
