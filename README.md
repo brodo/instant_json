@@ -15,6 +15,7 @@ cargo install wasm-pack
 ```
 
 And compile it to a WASM-module using `wasm-pack build --target web`.
+Run tests with `wasm-pack test --node`.
 
 
 
