@@ -1,14 +1,19 @@
+use std::fmt::{Debug};
+
 use pest::error::Error as PestError;
 use pest_meta::parser::Rule;
 use thiserror::Error;
-use crate::Multiple;
+use crate::error::InstantJsonError::Multiple;
+
 
 #[derive(Error, Debug, Clone)]
-pub enum InstantJsonError<'a> {
+pub enum InstantJsonError {
     #[error("grammar parsing error")]
     GrammarParse(#[from] PestError<Rule>),
     #[error("json parsing error")]
-    JsonParse(PestError<&'a str>),
+    JsonParse {
+        message: String
+    },
     #[error("multiple errors")]
     Multiple {
         errors: Vec<PestError<Rule>>
@@ -17,7 +22,7 @@ pub enum InstantJsonError<'a> {
     NotFound
 }
 
-impl From<Vec<PestError<Rule>>> for InstantJsonError<'_> {
+impl From<Vec<PestError<Rule>>> for InstantJsonError {
     fn from(errors: Vec<PestError<Rule>>) -> Self {
         Multiple {
             errors
@@ -25,8 +30,12 @@ impl From<Vec<PestError<Rule>>> for InstantJsonError<'_> {
     }
 }
 
-impl<'a> From<PestError<&'a str>> for InstantJsonError<'a> {
+impl<'a> From<PestError<&'a str>> for InstantJsonError {
     fn from(pest_error: PestError<&'a str>) -> Self {
-        InstantJsonError::JsonParse(pest_error)
+        InstantJsonError::JsonParse{
+            message: pest_error.to_string()
+        }
     }
 }
+
+

@@ -1,37 +1,40 @@
-mod error;
-
 use std::collections::HashMap;
-use pest::iterators::Pairs;
+
+use js_sys::{Object};
 use pest_meta::optimizer::{optimize, OptimizedRule};
-// use wasm_bindgen::prelude::*;
 use pest_meta::parser::{self, Rule};
 use pest_vm::Vm;
-
-
+use wasm_bindgen::prelude::*;
 use crate::error::InstantJsonError;
-use crate::InstantJsonError::Multiple;
 
+mod error;
 
+#[wasm_bindgen]
 pub struct InstantJson {
-    vms: HashMap<String, Vm>
+    vms: HashMap<String, Vm>,
 }
 
+
+#[wasm_bindgen]
 impl InstantJson {
+    #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         InstantJson {
             vms: HashMap::new()
         }
     }
-
-    pub fn compile<'a>(&'a mut self, schema_name: &str, schema: &'a str) -> Result<(), InstantJsonError>{
+    #[wasm_bindgen]
+    pub fn compile(&mut self, schema_name: &str, schema: &str) -> Result<(), JsError>{
         let rules = parse_pest(schema)?;
         self.vms.insert(schema_name.to_string(), Vm::new(rules));
         Ok(())
     }
 
-    pub fn parse<'a>(&'a self, schema_name: &str, json_str: &'a str) -> Result<Pairs<&str>, InstantJsonError>  {
+    #[wasm_bindgen]
+    pub fn parse(&self, schema_name: &str, json_str: &str) -> Result<Object, JsError>  {
         let vm = self.vms.get(schema_name).ok_or(InstantJsonError::NotFound)?;
-        Ok(vm.parse("root", json_str)?)
+        let _pairs = vm.parse("object", json_str)?;
+        Ok(Object::new())
     }
 }
 
@@ -45,22 +48,26 @@ fn parse_pest(input: &str) -> Result<Vec<OptimizedRule>, InstantJsonError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{InstantJson};
+    use crate::InstantJson;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_parse_pest() {
-        let input_grammar = r#"root = { "abc" }"#;
+        let input_grammar = r#"object = { "abc" }"#;
         let mut ij = InstantJson::new();
-        ij.compile("simple_schema", input_grammar).expect("should compile");
+        let res = ij.compile("simple_schema", input_grammar);
+        assert!(res.is_ok());
         assert_eq!(ij.vms.len(), 1);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_parse_json() {
-        let input_grammar = r#"root = { "abc" }"#;
+        let input_grammar = r#"object = { "abc" }"#;
         let mut ij = InstantJson::new();
-        ij.compile("simple_schema", input_grammar).expect("should compile");
-        ij.parse("simple_schema", "abc").expect("should parse");
+        let com_res = ij.compile("simple_schema", input_grammar);
+        assert!(com_res.is_ok());
+        let p_res = ij.parse("simple_schema", "abc");
+        assert!(p_res.is_ok());
         assert_eq!(ij.vms.len(), 1);
     }
 }
