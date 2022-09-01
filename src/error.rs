@@ -8,25 +8,21 @@ use crate::error::InstantJsonError::Multiple;
 
 #[derive(Error, Debug, Clone)]
 pub enum InstantJsonError {
-    #[error("grammar parsing error")]
+    #[error("grammar parsing error: {0}")]
     GrammarParse(#[from] PestError<Rule>),
     #[error("json parsing error")]
     JsonParse {
         message: String
     },
-    #[error("multiple errors")]
-    Multiple {
-        errors: Vec<PestError<Rule>>
-    },
+    #[error("multiple errors: {0:#?}")]
+    Multiple(Vec<PestError<Rule>>),
     #[error("not found error")]
     NotFound
 }
 
 impl From<Vec<PestError<Rule>>> for InstantJsonError {
     fn from(errors: Vec<PestError<Rule>>) -> Self {
-        Multiple {
-            errors
-        }
+        Multiple(errors)
     }
 }
 
