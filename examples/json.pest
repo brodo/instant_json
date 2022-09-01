@@ -1,15 +1,14 @@
-WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-object = {
+object = { SOI ~
     "{" ~ "}" |
-    "{" ~ pair ~ ("," ~ pair)* ~ "}"
+    "{" ~ pair ~ ("," ~ pair)* ~ "}" ~  EOI
 }
+
 pair = { string ~ ":" ~ value }
 
 array = {
     "[" ~ "]" |
     "[" ~ value ~ ("," ~ value)* ~ "]"
 }
-
 value = _{ object | array | string | number | boolean | null }
 
 boolean = { "true" | "false" }
@@ -30,3 +29,5 @@ number = @{
     ~ ("." ~ ASCII_DIGIT*)?
     ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
 }
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
