@@ -3,6 +3,7 @@ use std::fmt::{Debug};
 use pest::error::Error as PestError;
 use pest_meta::parser::Rule;
 use thiserror::Error;
+use wasm_bindgen::JsError;
 use crate::error::InstantJsonError::Multiple;
 
 

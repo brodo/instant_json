@@ -1,6 +1,8 @@
-object = { SOI ~
+root = {SOI ~ object ~ EOI}
+
+object = {
     "{" ~ "}" |
-    "{" ~ pair ~ ("," ~ pair)* ~ "}" ~  EOI
+    "{" ~ pair ~ ("," ~ pair)* ~ "}"
 }
 
 pair = { string ~ ":" ~ value }
