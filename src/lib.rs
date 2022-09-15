@@ -9,7 +9,7 @@ use wasm_bindgen_test::console_log;
 use crate::error::InstantJsonError;
 use crate::InstantJsonError::JsonParse;
 use crate::json::JsonValue;
-use crate::JsonValue::{JsonNumber, JsonObject, JsonString};
+use crate::JsonValue::{JsonArray, JsonNull, JsonNumber, JsonObject, JsonString};
 use serde::Serialize;
 use serde_wasm_bindgen::Serializer;
 
@@ -54,10 +54,18 @@ impl InstantJson {
                     match child.as_rule() {
                         "object" => {
                             let new_obj = JsonObject(HashMap::new());
-                            if let JsonObject(hm) = current_obj {
-                                hm.insert(current_key.to_owned(), new_obj);
-                                *current_obj = hm.get_mut(current_key).unwrap();
-                                stack.push(child.into_inner());
+                            match current_obj {
+                                JsonObject(hm) => {
+                                    hm.insert(current_key.to_owned(), new_obj);
+                                    *current_obj = hm.get_mut(current_key).unwrap();
+                                    stack.push(child.into_inner());
+                                }
+                                JsonArray(arr) => {
+                                    arr.push(new_obj);
+                                    *current_obj = arr.last_mut().unwrap();
+                                    stack.push(child.into_inner());
+                                }
+                                _ => {}
                             }
                         }
                         "pair" => {
@@ -69,16 +77,55 @@ impl InstantJson {
                             if is_key {
                                 current_key = &child_str[1..child_str.len() - 1];
                             } else {
-                                if let JsonObject(hm) = current_obj {
-                                    hm.insert(current_key.to_owned(), JsonString(child_str.to_string()));
+                                match current_obj {
+                                    JsonObject(hm) => {
+                                        hm.insert(current_key.to_owned(), JsonString(child_str.to_string()));
+                                    }
+                                    JsonArray(arr) => {
+                                        arr.push(JsonString(child_str.to_string()))
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
                         "number" => {
-                            if let JsonObject(hm) = current_obj {
-                                let child_str = child.as_str();
-                                let child_num: f64 = child_str.parse().unwrap();
-                                hm.insert(current_key.to_owned(), JsonNumber(child_num));
+                            let child_str = child.as_str();
+                            let child_num: f64 = child_str.parse().unwrap();
+                            match current_obj {
+                                JsonObject(hm) => {
+                                    hm.insert(current_key.to_owned(), JsonNumber(child_num));
+                                }
+                                JsonArray(arr) => {
+                                    arr.push(JsonNumber(child_num))
+                                }
+                                _ => {}
+                            }
+                        }
+                        "null" => {
+                            match current_obj {
+                                JsonObject(hm) => {
+                                    hm.insert(current_key.to_owned(), JsonNull);
+                                }
+                                JsonArray(arr) => {
+                                    arr.push(JsonNull)
+                                }
+                                _ => {}
+                            }
+                        }
+                        "array" => {
+                            let new_arr = JsonArray(vec![]);
+                            match current_obj {
+                                JsonObject(hm) => {
+                                    hm.insert(current_key.to_owned(), new_arr);
+                                    *current_obj = hm.get_mut(current_key).unwrap();
+                                    stack.push(child.into_inner());
+                                }
+                                JsonArray(arr) => {
+                                    arr.push(new_arr);
+                                    *current_obj = arr.last_mut().unwrap();
+                                    stack.push(child.into_inner());
+                                }
+                                _ => {}
                             }
                         }
                         "EOI" => {}
@@ -91,7 +138,7 @@ impl InstantJson {
         } else {
             return Err(JsonParse { message: "Root needs to be object!".to_string() }.into());
         }
-        let serializer =  Serializer::json_compatible();
+        let serializer = Serializer::json_compatible();
         root.serialize(&serializer).map_err(|_| { JsonParse { message: "invalid root".to_owned() }.into() })
     }
 }
@@ -164,6 +211,24 @@ pub mod tests {
     fn test_parse_simple_json_2() {
         let ij = simple_test_init();
         let input = r#"{"hello":{"world":1}}"#;
+        let p_res = ij.parse("simple_schema", input);
+        simple_test_validate(p_res, input);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_simple_json_null() {
+        let ij = simple_test_init();
+        let input = r#"{"hello":null}"#;
+        let p_res = ij.parse("simple_schema", input);
+        simple_test_validate(p_res, input);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_simple_json_array() {
+        let ij = simple_test_init();
+        let input = r#"{"hello":[1,2,3]}"#;
         let p_res = ij.parse("simple_schema", input);
         simple_test_validate(p_res, input);
         assert_eq!(ij.vms.len(), 1);
