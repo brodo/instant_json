@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize, Serializer};
 use std::collections::HashMap;
-use serde::ser::SerializeMap;
-use crate::{JsonNumber, JsonObject, JsonString};
+use serde::ser::{SerializeMap, SerializeSeq};
+use crate::{JsonArray, JsonNumber, JsonObject, JsonString};
 use crate::JsonValue::JsonBool;
 
 
@@ -11,6 +11,7 @@ pub enum JsonValue {
     JsonNumber(f64),
     JsonBool(bool),
     JsonNull,
+    JsonArray(Vec<JsonValue>),
     JsonObject(HashMap<String, JsonValue>),
 }
 
@@ -28,6 +29,13 @@ impl Serialize for JsonValue {
                     map.serialize_entry(k, v)?;
                 }
                 map.end()
+            }
+            JsonArray(arr) => {
+                let mut seq = serializer.serialize_seq(Some(arr.len()))?;
+                for e in arr {
+                    seq.serialize_element(e)?;
+                }
+                seq.end()
             }
         }
     }
