@@ -89,7 +89,7 @@ impl InstantJson {
         } else {
             return Err(JsonParse { message: "Root needs to be object!".to_string() }.into());
         }
-        console_log!("parse result: {:?}", &root);
+        // console_log!("parse result: {}", serde_json::to_string(&root)?);
         serde_wasm_bindgen::to_value(&root).map_err(|_| { JsonParse { message: "invalid root".to_owned() }.into() })
     }
 }
@@ -135,14 +135,16 @@ pub mod tests {
         ij
     }
 
-    fn simple_test_validate(res: Result<JsValue, JsError>) {
+    fn simple_test_validate(res: Result<JsValue, JsError>, input: &str) {
         match res {
             Err(e) => {
                 console::log_1(&e.into());
                 assert!(false, "got error");
             }
             Ok(obj) => {
-                console_log!("{}",JSON::stringify(&obj).unwrap());
+                let res_json = JSON::stringify(&obj).unwrap();
+                console_log!("Res: {}", res_json);
+                assert_eq!(res_json, input)
             }
         }
     }
@@ -150,16 +152,18 @@ pub mod tests {
     #[wasm_bindgen_test]
     fn test_parse_simple_json_1() {
         let ij = simple_test_init();
-        let p_res = ij.parse("simple_schema", r#"{"hello": 1}"#);
-        simple_test_validate(p_res);
+        let input = r#"{"hello": 1}"#;
+        let p_res = ij.parse("simple_schema", input);
+        simple_test_validate(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
     #[wasm_bindgen_test]
     fn test_parse_simple_json_2() {
         let ij = simple_test_init();
-        let p_res = ij.parse("simple_schema", r#"{"hello": {"world": 1}}"#);
-        simple_test_validate(p_res);
+        let input = r#"{"hello": {"world": 1}}"#;
+        let p_res = ij.parse("simple_schema", input);
+        simple_test_validate(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 }
