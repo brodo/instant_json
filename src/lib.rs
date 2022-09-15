@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 
-use js_sys::{Object, Reflect, JSON};
-use pest::iterators::Pair;
 use pest_meta::optimizer::{optimize, OptimizedRule};
 use pest_meta::parser::{self, Rule};
 use pest_meta::validator::validate_pairs;
 use pest_vm::Vm;
-use wasm_bindgen::JsObject;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::console_log;
 use crate::error::InstantJsonError;
@@ -42,36 +39,36 @@ impl InstantJson {
         let vm = self.vms.get(schema_name).ok_or(InstantJsonError::NotFound)?;
         let mut pairs = vm.parse("root", json_str)?;
         let root_pair = pairs.next().ok_or(JsonParse { message: "invalid root".to_owned() })?;
-        let root_obj_pair = root_pair.into_inner().next().ok_or(InstantJsonError::JsonParse { message: "invalid root object".to_owned() })?;
+        let root_obj_pair = root_pair.into_inner().next().ok_or(JsonParse { message: "invalid root object".to_owned() })?;
         let mut root = JsonObject(HashMap::new());
         if root_obj_pair.as_rule() == "object" {
-            //let mut current_obj = &mut root;
             let current_obj = &mut &mut root;
             let mut stack = vec![];
             stack.push(root_obj_pair.into_inner());
-            let mut isKey = false;
-            let mut currentKey = "";
+            let mut is_key = false;
+            let mut current_key = "";
             while let Some(current) = stack.pop() {
                 for child in current {
                     match child.as_rule() {
                         "object" => {
-                            let mut new_obj = JsonObject(HashMap::new());
+                            let new_obj = JsonObject(HashMap::new());
                             if let JsonObject(hm) = current_obj {
-                                hm.insert(currentKey.to_owned(), new_obj);
-                                *current_obj = hm.get_mut(currentKey).unwrap();
+                                hm.insert(current_key.to_owned(), new_obj);
+                                *current_obj = hm.get_mut(current_key).unwrap();
+                                stack.push(child.into_inner());
                             }
                         }
                         "pair" => {
                             stack.push(child.clone().into_inner());
-                            isKey = true;
+                            is_key = true;
                         }
                         "string" => {
                             let child_str = child.as_str();
-                            if isKey {
-                                currentKey = &child_str[1..child_str.len() - 1];
+                            if is_key {
+                                current_key = &child_str[1..child_str.len() - 1];
                             } else {
                                 if let JsonObject(hm) = current_obj {
-                                    hm.insert(currentKey.to_owned(), JsonString(child_str.to_string()));
+                                    hm.insert(current_key.to_owned(), JsonString(child_str.to_string()));
                                 }
                             }
                         }
@@ -79,9 +76,8 @@ impl InstantJson {
                             if let JsonObject(hm) = current_obj {
                                 let child_str = child.as_str();
                                 let child_num: f64 = child_str.parse().unwrap();
-                                hm.insert(currentKey.to_owned(), JsonNumber(child_num));
+                                hm.insert(current_key.to_owned(), JsonNumber(child_num));
                             }
-
                         }
                         "EOI" => {}
                         _ => {
@@ -94,7 +90,6 @@ impl InstantJson {
             return Err(JsonParse { message: "Root needs to be object!".to_string() }.into());
         }
         console_log!("parse result: {:?}", &root);
-
         serde_wasm_bindgen::to_value(&root).map_err(|_| { JsonParse { message: "invalid root".to_owned() }.into() })
     }
 }
@@ -110,9 +105,7 @@ fn parse_pest(input: &str) -> Result<Vec<OptimizedRule>, InstantJsonError> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::error::Error;
-    use js_sys::Object;
-    use crate::{InstantJson, InstantJsonError, JsonValue};
+    use crate::{InstantJson};
     use wasm_bindgen_test::{console_log, wasm_bindgen_test};
     use web_sys::console;
     use js_sys::{JSON};

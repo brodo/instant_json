@@ -1,9 +1,8 @@
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use std::rc::Rc;
-use crate::JsonValue::JsonObject;
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
 pub enum JsonValue {
     JsonString(String),
     JsonNumber(f64),
