@@ -10,6 +10,8 @@ use crate::error::InstantJsonError;
 use crate::InstantJsonError::JsonParse;
 use crate::json::JsonValue;
 use crate::JsonValue::{JsonNumber, JsonObject, JsonString};
+use serde::Serialize;
+use serde_wasm_bindgen::Serializer;
 
 mod error;
 mod json;
@@ -89,8 +91,8 @@ impl InstantJson {
         } else {
             return Err(JsonParse { message: "Root needs to be object!".to_string() }.into());
         }
-        // console_log!("parse result: {}", serde_json::to_string(&root)?);
-        serde_wasm_bindgen::to_value(&root).map_err(|_| { JsonParse { message: "invalid root".to_owned() }.into() })
+        let serializer =  Serializer::json_compatible();
+        root.serialize(&serializer).map_err(|_| { JsonParse { message: "invalid root".to_owned() }.into() })
     }
 }
 
@@ -106,7 +108,7 @@ fn parse_pest(input: &str) -> Result<Vec<OptimizedRule>, InstantJsonError> {
 #[cfg(test)]
 pub mod tests {
     use crate::{InstantJson};
-    use wasm_bindgen_test::{console_log, wasm_bindgen_test};
+    use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::console;
     use js_sys::{JSON};
     use wasm_bindgen::{JsError, JsValue};
@@ -116,7 +118,7 @@ pub mod tests {
     #[wasm_bindgen_test]
     fn test_parse_pest() {
         let mut ij = InstantJson::new();
-        let res = ij.compile("simple_schema", &JSON_GRAMMAR.replace("\n", ""));
+        let res = ij.compile("simple_schema", &JSON_GRAMMAR);
         if let Err(e) = res {
             console::log_1(&e.into());
             assert!(false, "Error while compiling rules");
@@ -142,8 +144,8 @@ pub mod tests {
                 assert!(false, "got error");
             }
             Ok(obj) => {
+                assert!(obj.is_object());
                 let res_json = JSON::stringify(&obj).unwrap();
-                console_log!("Res: {}", res_json);
                 assert_eq!(res_json, input)
             }
         }
@@ -152,7 +154,7 @@ pub mod tests {
     #[wasm_bindgen_test]
     fn test_parse_simple_json_1() {
         let ij = simple_test_init();
-        let input = r#"{"hello": 1}"#;
+        let input = r#"{"hello":1}"#;
         let p_res = ij.parse("simple_schema", input);
         simple_test_validate(p_res, input);
         assert_eq!(ij.vms.len(), 1);
@@ -161,7 +163,7 @@ pub mod tests {
     #[wasm_bindgen_test]
     fn test_parse_simple_json_2() {
         let ij = simple_test_init();
-        let input = r#"{"hello": {"world": 1}}"#;
+        let input = r#"{"hello":{"world":1}}"#;
         let p_res = ij.parse("simple_schema", input);
         simple_test_validate(p_res, input);
         assert_eq!(ij.vms.len(), 1);

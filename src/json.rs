@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use serde::ser::SerializeMap;
 use crate::{JsonNumber, JsonObject, JsonString};
 use crate::JsonValue::JsonBool;
-// use wasm_bindgen_test::console_log;
 
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize,Debug)]
 pub enum JsonValue {
     JsonString(String),
     JsonNumber(f64),
