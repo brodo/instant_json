@@ -74,15 +74,17 @@ impl InstantJson {
                         }
                         "string" => {
                             let child_str = child.as_str();
+                            let child_str_unquoted = &child_str[1..child_str.len() - 1];
                             if is_key {
-                                current_key = &child_str[1..child_str.len() - 1];
+                                current_key = child_str_unquoted;
+                                is_key = false;
                             } else {
                                 match current_obj {
                                     JsonObject(hm) => {
-                                        hm.insert(current_key.to_owned(), JsonString(child_str.to_string()));
+                                        hm.insert(current_key.to_owned(), JsonString(child_str_unquoted.to_string()));
                                     }
                                     JsonArray(arr) => {
-                                        arr.push(JsonString(child_str.to_string()))
+                                        arr.push(JsonString(child_str_unquoted.to_string()))
                                     }
                                     _ => {}
                                 }
@@ -199,7 +201,7 @@ pub mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn test_parse_simple_json_1() {
+    fn test_parse_number() {
         let ij = simple_test_init();
         let input = r#"{"hello":1}"#;
         let p_res = ij.parse("simple_schema", input);
@@ -208,7 +210,17 @@ pub mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn test_parse_simple_json_2() {
+    fn test_parse_string() {
+        let ij = simple_test_init();
+        let input = r#"{"hello":"world"}"#;
+        let p_res = ij.parse("simple_schema", input);
+        simple_test_validate(p_res, input);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+
+    #[wasm_bindgen_test]
+    fn test_parse_nested_simple() {
         let ij = simple_test_init();
         let input = r#"{"hello":{"world":1}}"#;
         let p_res = ij.parse("simple_schema", input);
@@ -217,7 +229,7 @@ pub mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn test_parse_simple_json_null() {
+    fn test_parse_null() {
         let ij = simple_test_init();
         let input = r#"{"hello":null}"#;
         let p_res = ij.parse("simple_schema", input);
@@ -226,9 +238,18 @@ pub mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn test_parse_simple_json_array() {
+    fn test_parse_array() {
         let ij = simple_test_init();
         let input = r#"{"hello":[1,2,3]}"#;
+        let p_res = ij.parse("simple_schema", input);
+        simple_test_validate(p_res, input);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_array_with_obj() {
+        let ij = simple_test_init();
+        let input = r#"{"hello":[1,2,{"foo":"bar"}]}"#;
         let p_res = ij.parse("simple_schema", input);
         simple_test_validate(p_res, input);
         assert_eq!(ij.vms.len(), 1);
