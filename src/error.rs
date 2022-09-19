@@ -1,4 +1,5 @@
 use std::fmt::{Debug};
+use std::num::ParseFloatError;
 
 use pest::error::Error as PestError;
 use pest_meta::parser::Rule;
@@ -17,7 +18,9 @@ pub enum InstantJsonError {
     #[error("multiple errors: {0:#?}")]
     Multiple(Vec<PestError<Rule>>),
     #[error("not found error")]
-    NotFound
+    NotFound,
+    #[error("float parsing error")]
+    FloatParse(#[from] ParseFloatError)
 }
 
 impl From<Vec<PestError<Rule>>> for InstantJsonError {

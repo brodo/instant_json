@@ -7,7 +7,7 @@ use pest_vm::Vm;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::console_log;
 use crate::error::InstantJsonError;
-use crate::InstantJsonError::JsonParse;
+use crate::InstantJsonError::{FloatParse, JsonParse};
 use crate::json::JsonValue;
 use crate::JsonValue::{JsonArray, JsonNull, JsonNumber, JsonObject, JsonString};
 use serde::Serialize;
@@ -92,16 +92,24 @@ impl InstantJson {
                         }
                         "number" => {
                             let child_str = child.as_str();
-                            let child_num: f64 = child_str.parse().unwrap();
-                            match current_obj {
-                                JsonObject(hm) => {
-                                    hm.insert(current_key.to_owned(), JsonNumber(child_num));
+                            match child_str.parse::<f64>() {
+                                Ok(child_num) => {
+                                    match current_obj {
+                                        JsonObject(hm) => {
+                                            hm.insert(current_key.to_owned(), JsonNumber(child_num));
+                                        }
+                                        JsonArray(arr) => {
+                                            arr.push(JsonNumber(child_num))
+                                        }
+                                        _ => {}
+                                    }
                                 }
-                                JsonArray(arr) => {
-                                    arr.push(JsonNumber(child_num))
+                                Err(e) =>{
+                                    return Err(FloatParse(e).into());
                                 }
-                                _ => {}
                             }
+
+
                         }
                         "null" => {
                             match current_obj {
@@ -186,7 +194,10 @@ pub mod tests {
         ij
     }
 
-    fn simple_test_validate(res: Result<JsValue, JsError>, input: &str) {
+    fn is_invertible(res: Result<JsValue, JsError>, input: &str) {
+        encodes_to(res, input, input);
+    }
+    fn encodes_to(res: Result<JsValue, JsError>, input: &str, expected: &str) {
         match res {
             Err(e) => {
                 console::log_1(&e.into());
@@ -195,17 +206,18 @@ pub mod tests {
             Ok(obj) => {
                 assert!(obj.is_object());
                 let res_json = JSON::stringify(&obj).unwrap();
-                assert_eq!(res_json, input)
+                assert_eq!(res_json, expected)
             }
         }
     }
+    
 
     #[wasm_bindgen_test]
     fn test_parse_number() {
         let ij = simple_test_init();
         let input = r#"{"hello":1}"#;
         let p_res = ij.parse("simple_schema", input);
-        simple_test_validate(p_res, input);
+        is_invertible(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -214,17 +226,26 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":"world"}"#;
         let p_res = ij.parse("simple_schema", input);
-        simple_test_validate(p_res, input);
+        is_invertible(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
 
     #[wasm_bindgen_test]
-    fn test_parse_nested_simple() {
+    fn test_parse_nested_once() {
         let ij = simple_test_init();
         let input = r#"{"hello":{"world":1}}"#;
         let p_res = ij.parse("simple_schema", input);
-        simple_test_validate(p_res, input);
+        is_invertible(p_res, input);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_nested_twice() {
+        let ij = simple_test_init();
+        let input = r#"{"hello":{"world":{"test":1}}}"#;
+        let p_res = ij.parse("simple_schema", input);
+        is_invertible(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -233,7 +254,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":null}"#;
         let p_res = ij.parse("simple_schema", input);
-        simple_test_validate(p_res, input);
+        is_invertible(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -242,7 +263,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":[1,2,3]}"#;
         let p_res = ij.parse("simple_schema", input);
-        simple_test_validate(p_res, input);
+        is_invertible(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -251,7 +272,36 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":[1,2,{"foo":"bar"}]}"#;
         let p_res = ij.parse("simple_schema", input);
-        simple_test_validate(p_res, input);
+        is_invertible(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
+
+    #[wasm_bindgen_test]
+    fn test_parse_array_empty() {
+        let ij = simple_test_init();
+        let input = r#"{"items":[]}"#;
+        let p_res = ij.parse("simple_schema", input);
+        is_invertible(p_res, input);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_array_in_obj() {
+        let ij = simple_test_init();
+        let input = r#"{"obj":{"items":[]}}"#;
+        let p_res = ij.parse("simple_schema", input);
+        is_invertible(p_res, input);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_i_number_double_huge_neg_exp() {
+        let ij = simple_test_init();
+        let input = r#"{"val":123.456e-789}"#;
+        let p_res = ij.parse("simple_schema", input);
+        encodes_to(p_res, input, r#"{"val":0}"#);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+
 }
