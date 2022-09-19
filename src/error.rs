@@ -20,7 +20,9 @@ pub enum InstantJsonError {
     #[error("not found error")]
     NotFound,
     #[error("float parsing error")]
-    FloatParse(#[from] ParseFloatError)
+    FloatParse(#[from] ParseFloatError),
+    #[error("Broken UTF-8 escape sequence")]
+    EscapeParse
 }
 
 impl From<Vec<PestError<Rule>>> for InstantJsonError {

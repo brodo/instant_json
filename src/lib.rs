@@ -7,7 +7,7 @@ use pest_vm::Vm;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::console_log;
 use crate::error::InstantJsonError;
-use crate::InstantJsonError::{FloatParse, JsonParse};
+use crate::InstantJsonError::{EscapeParse, FloatParse, JsonParse};
 use crate::json::JsonValue;
 use crate::JsonValue::{JsonArray, JsonNull, JsonNumber, JsonObject, JsonString};
 use serde::Serialize;
@@ -48,7 +48,7 @@ impl InstantJson {
             let mut stack = vec![];
             stack.push(root_obj_pair.into_inner());
             let mut is_key = false;
-            let mut current_key = "";
+            let mut current_key = "".to_owned();
             while let Some(current) = stack.pop() {
                 for child in current {
                     match child.as_rule() {
@@ -57,7 +57,7 @@ impl InstantJson {
                             match current_obj {
                                 JsonObject(hm) => {
                                     hm.insert(current_key.to_owned(), new_obj);
-                                    *current_obj = hm.get_mut(current_key).unwrap();
+                                    *current_obj = hm.get_mut(&*current_key).unwrap();
                                     stack.push(child.into_inner());
                                 }
                                 JsonArray(arr) => {
@@ -75,20 +75,28 @@ impl InstantJson {
                         "string" => {
                             let child_str = child.as_str();
                             let child_str_unquoted = &child_str[1..child_str.len() - 1];
-                            if is_key {
-                                current_key = child_str_unquoted;
-                                is_key = false;
-                            } else {
-                                match current_obj {
-                                    JsonObject(hm) => {
-                                        hm.insert(current_key.to_owned(), JsonString(child_str_unquoted.to_string()));
+                            match unescape(child_str_unquoted) {
+                                Err(_) => {
+                                    return Err(EscapeParse.into())
+                                }
+                                Ok(child_str_unescaped) =>{
+                                    if is_key {
+                                        current_key = child_str_unescaped;
+                                        is_key = false;
+                                    } else {
+                                        match current_obj {
+                                            JsonObject(hm) => {
+                                                hm.insert(current_key.to_owned(), JsonString(child_str_unescaped));
+                                            }
+                                            JsonArray(arr) => {
+                                                arr.push(JsonString(child_str_unescaped))
+                                            }
+                                            _ => {}
+                                        }
                                     }
-                                    JsonArray(arr) => {
-                                        arr.push(JsonString(child_str_unquoted.to_string()))
-                                    }
-                                    _ => {}
                                 }
                             }
+
                         }
                         "number" => {
                             let child_str = child.as_str();
@@ -127,7 +135,7 @@ impl InstantJson {
                             match current_obj {
                                 JsonObject(hm) => {
                                     hm.insert(current_key.to_owned(), new_arr);
-                                    *current_obj = hm.get_mut(current_key).unwrap();
+                                    *current_obj = hm.get_mut(&*current_key).unwrap();
                                     stack.push(child.into_inner());
                                 }
                                 JsonArray(arr) => {
@@ -159,6 +167,10 @@ fn parse_pest(input: &str) -> Result<Vec<OptimizedRule>, InstantJsonError> {
     validate_pairs(pairs.clone())?;
     let ast = parser::consume_rules(pairs)?;
     Ok(optimize(ast))
+}
+
+fn unescape(s: &str) -> serde_json::Result<String> {
+    serde_json::from_str(&format!("\"{}\"", s))
 }
 
 
@@ -193,11 +205,8 @@ pub mod tests {
         }
         ij
     }
-
-    fn is_invertible(res: Result<JsValue, JsError>, input: &str) {
-        encodes_to(res, input, input);
-    }
-    fn encodes_to(res: Result<JsValue, JsError>, input: &str, expected: &str) {
+    
+    fn encodes_to(res: Result<JsValue, JsError>, expected: &str) {
         match res {
             Err(e) => {
                 console::log_1(&e.into());
@@ -217,7 +226,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":1}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -226,7 +235,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":"world"}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -236,7 +245,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":{"world":1}}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -245,7 +254,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":{"world":{"test":1}}}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -254,7 +263,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":null}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -263,7 +272,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":[1,2,3]}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -272,7 +281,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"hello":[1,2,{"foo":"bar"}]}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -281,7 +290,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"items":[]}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -290,7 +299,7 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"obj":{"items":[]}}"#;
         let p_res = ij.parse("simple_schema", input);
-        is_invertible(p_res, input);
+        encodes_to(p_res, input);
         assert_eq!(ij.vms.len(), 1);
     }
 
@@ -299,7 +308,66 @@ pub mod tests {
         let ij = simple_test_init();
         let input = r#"{"val":123.456e-789}"#;
         let p_res = ij.parse("simple_schema", input);
-        encodes_to(p_res, input, r#"{"val":0}"#);
+        // Numbers very close to 0 are encoded as 0;
+        encodes_to(p_res, r#"{"val":0}"#);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_i_number_huge_exp() {
+        let ij = simple_test_init();
+        let input = r#"{"val":0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006}"#;
+        let p_res = ij.parse("simple_schema", input);
+        // The Rust number 'inf' is encoded as 'null'
+        encodes_to(p_res, r#"{"val":null}"#);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_i_number_neg_int_huge_exp() {
+        let ij = simple_test_init();
+        let input = r#"{"val":-1e+9999}"#;
+        let p_res = ij.parse("simple_schema", input);
+        // The Rust number '-inf' is encoded as 'null'
+        encodes_to(p_res, r#"{"val":null}"#);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_i_number_pos_double_huge_expp() {
+        let ij = simple_test_init();
+        let input = r#"{"val":1.5e+9999}"#;
+        let p_res = ij.parse("simple_schema", input);
+        // The Rust number 'inf' is encoded as 'null'
+        encodes_to(p_res, r#"{"val":null}"#);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_i_number_real_neg_overflow() {
+        let ij = simple_test_init();
+        let input = r#"{"val":-123123e100000}"#;
+        let p_res = ij.parse("simple_schema", input);
+        // The Rust number '-inf' is encoded as 'null'
+        encodes_to(p_res, r#"{"val":null}"#);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_i_object_key_lone_2nd_surrogate() {
+        let ij = simple_test_init();
+        let input = r#"{"\uDFAA":0}"#; // Broken escape sequence
+        let p_res = ij.parse("simple_schema", input);
+        assert!(p_res.is_err());
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_i_string_1st_valid_surrogate_2nd_invalid() {
+        let ij = simple_test_init();
+        let input = r#"{"\uD888\u1234": 0}"#; // Broken escape sequence
+        let p_res = ij.parse("simple_schema", input);
+        assert!(p_res.is_err());
         assert_eq!(ij.vms.len(), 1);
     }
 
