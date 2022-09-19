@@ -314,6 +314,15 @@ pub mod tests {
     }
 
     #[wasm_bindgen_test]
+    fn test_parse_escaped_string() {
+        let ij = simple_test_init();
+        let input = r#"{"\t\t":0}"#; // Broken escape sequence
+        let p_res = ij.parse("simple_schema", input);
+        encodes_to(p_res, r#"{"\t\t":0}"#);
+        assert_eq!(ij.vms.len(), 1);
+    }
+
+    #[wasm_bindgen_test]
     fn test_parse_i_number_huge_exp() {
         let ij = simple_test_init();
         let input = r#"{"val":0.4e00669999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999969999999006}"#;
@@ -370,6 +379,7 @@ pub mod tests {
         assert!(p_res.is_err());
         assert_eq!(ij.vms.len(), 1);
     }
+
 
 
 }
